@@ -52,6 +52,9 @@ export function createDraftInvoice(
 ): Invoice {
   const client = clients[0];
   const businessStateCode = settings.business.stateCode || "";
+  // Place of Supply defaults to the SELLER's state (per GST rules for goods).
+  // The user can override per-invoice in the builder for inter-state sales.
+  const placeOfSupply = businessStateCode;
   const clientStateCode = client?.stateCode || businessStateCode;
   const isInter = businessStateCode && clientStateCode && businessStateCode !== clientStateCode;
   const taxType = isInter ? "inter" : settings.invoice.defaultTaxType;
@@ -74,7 +77,7 @@ export function createDraftInvoice(
     issueDate: todayIso(),
     dueDate: undefined,
     reference: "",
-    placeOfSupply: clientStateCode || businessStateCode,
+    placeOfSupply,
     reverseCharge: false,
     items,
     globalDiscountPct: 0,

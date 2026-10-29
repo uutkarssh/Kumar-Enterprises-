@@ -161,7 +161,16 @@
   .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
 }
 
-/* Print styles for invoice */
+/* Print styles for invoice.
+   Bug 2(b): print-color-adjust: exact on .print-area and all children forces
+   the browser (and html-to-image capture) to render colors/backgrounds at
+   full opacity instead of lightening them to "save ink". */
+.print-area,
+.print-area * {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
 @media print {
   body * { visibility: hidden; }
   .print-area, .print-area * { visibility: visible; }

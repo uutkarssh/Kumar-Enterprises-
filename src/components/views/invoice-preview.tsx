@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useApp } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +41,7 @@ export function InvoicePreviewView() {
   const editInvoice = useApp((s) => s.editInvoice);
   const reload = useApp((s) => s.reload);
   const [payOpen, setPayOpen] = useState(false);
+  const printAreaRef = useRef<HTMLDivElement>(null);
 
   const inv = invoices.find((i) => i.id === id);
 
@@ -64,9 +65,16 @@ export function InvoicePreviewView() {
   const print = () => window.print();
 
   const downloadPdf = async () => {
+    if (!printAreaRef.current) {
+      toast.error("Invoice not ready for PDF");
+      return;
+    }
     const t = toast.loading("Generating PDF...");
     try {
-      await generateInvoicePdf(inv, settings, { download: true });
+      // Bug 1+2 fix: capture the SAME .print-area DOM that Print uses,
+      // so Download PDF is visually identical to Print (same logo, colors,
+      // borders, ₹ glyph, full-opacity text).
+      await generateInvoicePdf(printAreaRef.current, inv, settings, { download: true });
       toast.success("PDF downloaded", { id: t });
     } catch (e: any) {
       toast.error("PDF failed", { id: t, description: e?.message });
@@ -161,7 +169,7 @@ export function InvoicePreviewView() {
       </div>
 
       {/* Printable invoice */}
-      <div className="print-area bg-white text-black rounded-lg border shadow-sm">
+      <div ref={printAreaRef} className="print-area bg-white text-black rounded-lg border shadow-sm">
         {/* Header */}
         <div className="bg-ink text-white px-6 py-5 rounded-t-lg flex items-start justify-between">
           <div className="flex items-center gap-3">
