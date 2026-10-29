@@ -14,6 +14,35 @@ import type {
 } from "./types";
 import { DEFAULT_SETTINGS } from "./defaults";
 
+// Sync hooks — dual-write to Supabase. No-op if sync is inactive.
+// Imported lazily to avoid circular deps + to work when Supabase isn't configured.
+let _syncPush: ((t: any, r: any) => Promise<void>) | null = null;
+let _syncDelete: ((t: any, id: string) => Promise<void>) | null = null;
+async function syncPush(t: any, r: any) {
+  if (!_syncPush) {
+    try {
+      const m = await import("./sync");
+      _syncPush = m.syncPush;
+      _syncDelete = m.syncDelete;
+    } catch {
+      return;
+    }
+  }
+  return _syncPush?.(t, r);
+}
+async function syncDelete(t: any, id: string) {
+  if (!_syncDelete) {
+    try {
+      const m = await import("./sync");
+      _syncPush = m.syncPush;
+      _syncDelete = m.syncDelete;
+    } catch {
+      return;
+    }
+  }
+  return _syncDelete?.(t, id);
+}
+
 const DB_NAME = "ke-billing";
 const DB_VERSION = 1;
 
@@ -29,7 +58,7 @@ interface KeDb extends DBSchema {
 
 let dbPromise: Promise<IDBPDatabase<KeDb>> | null = null;
 
-function getDb() {
+export function getDb() {
   if (typeof indexedDB === "undefined") {
     return Promise.reject(new Error("IndexedDB not available"));
   }
@@ -82,7 +111,10 @@ export async function getSettings(): Promise<AppSettings> {
 
 export async function saveSettings(s: AppSettings): Promise<void> {
   const db = await getDb();
-  await db.put("settings", { ...s, updatedAt: new Date().toISOString() });
+  const updated = { ...s, updatedAt: new Date().toISOString() };
+  await db.put("settings", updated);
+  // Settings use a fixed id ("app" in sync_records) — the sync layer wraps it
+  void syncPush("settings", { ...updated, id: "app" } as any);
 }
 
 // ---------- Invoices ----------
@@ -102,13 +134,16 @@ export async function getInvoice(id: string): Promise<Invoice | undefined> {
 export async function putInvoice(inv: Invoice): Promise<void> {
   const db = await getDb();
   await db.put("invoices", inv);
+  void syncPush("invoices", inv);
 }
 
 export async function softDeleteInvoice(id: string): Promise<void> {
   const db = await getDb();
   const inv = await db.get("invoices", id);
   if (inv) {
-    await db.put("invoices", { ...inv, deletedAt: new Date().toISOString(), status: "cancelled" });
+    const updated = { ...inv, deletedAt: new Date().toISOString(), status: "cancelled" as const };
+    await db.put("invoices", updated);
+    void syncPush("invoices", updated);
   }
 }
 
@@ -116,13 +151,16 @@ export async function restoreInvoice(id: string): Promise<void> {
   const db = await getDb();
   const inv = await db.get("invoices", id);
   if (inv) {
-    await db.put("invoices", { ...inv, deletedAt: null });
+    const updated = { ...inv, deletedAt: null };
+    await db.put("invoices", updated);
+    void syncPush("invoices", updated);
   }
 }
 
 export async function purgeInvoice(id: string): Promise<void> {
   const db = await getDb();
   await db.delete("invoices", id);
+  void syncDelete("invoices", id);
 }
 
 // ---------- Clients ----------
@@ -142,12 +180,17 @@ export async function getClient(id: string): Promise<Client | undefined> {
 export async function putClient(c: Client): Promise<void> {
   const db = await getDb();
   await db.put("clients", c);
+  void syncPush("clients", c);
 }
 
 export async function softDeleteClient(id: string): Promise<void> {
   const db = await getDb();
   const c = await db.get("clients", id);
-  if (c) await db.put("clients", { ...c, deletedAt: new Date().toISOString() });
+  if (c) {
+    const updated = { ...c, deletedAt: new Date().toISOString() };
+    await db.put("clients", updated);
+    void syncPush("clients", updated);
+  }
 }
 
 // ---------- Products ----------
@@ -167,18 +210,27 @@ export async function getProduct(id: string): Promise<Product | undefined> {
 export async function putProduct(p: Product): Promise<void> {
   const db = await getDb();
   await db.put("products", p);
+  void syncPush("products", p);
 }
 
 export async function softDeleteProduct(id: string): Promise<void> {
   const db = await getDb();
   const p = await db.get("products", id);
-  if (p) await db.put("products", { ...p, deletedAt: new Date().toISOString() });
+  if (p) {
+    const updated = { ...p, deletedAt: new Date().toISOString() };
+    await db.put("products", updated);
+    void syncPush("products", updated);
+  }
 }
 
 export async function adjustStock(id: string, delta: number): Promise<void> {
   const db = await getDb();
   const p = await db.get("products", id);
-  if (p) await db.put("products", { ...p, stock: p.stock + delta, updatedAt: new Date().toISOString() });
+  if (p) {
+    const updated = { ...p, stock: p.stock + delta, updatedAt: new Date().toISOString() };
+    await db.put("products", updated);
+    void syncPush("products", updated);
+  }
 }
 
 // ---------- Payments ----------
@@ -207,12 +259,17 @@ export async function listPaymentsForClient(clientId: string): Promise<Payment[]
 export async function putPayment(p: Payment): Promise<void> {
   const db = await getDb();
   await db.put("payments", p);
+  void syncPush("payments", p);
 }
 
 export async function softDeletePayment(id: string): Promise<void> {
   const db = await getDb();
   const p = await db.get("payments", id);
-  if (p) await db.put("payments", { ...p, deletedAt: new Date().toISOString() });
+  if (p) {
+    const updated = { ...p, deletedAt: new Date().toISOString() };
+    await db.put("payments", updated);
+    void syncPush("payments", updated);
+  }
 }
 
 // ---------- Expenses ----------
@@ -227,12 +284,17 @@ export async function listExpenses(includeDeleted = false): Promise<Expense[]> {
 export async function putExpense(e: Expense): Promise<void> {
   const db = await getDb();
   await db.put("expenses", e);
+  void syncPush("expenses", e);
 }
 
 export async function softDeleteExpense(id: string): Promise<void> {
   const db = await getDb();
   const e = await db.get("expenses", id);
-  if (e) await db.put("expenses", { ...e, deletedAt: new Date().toISOString() });
+  if (e) {
+    const updated = { ...e, deletedAt: new Date().toISOString() };
+    await db.put("expenses", updated);
+    void syncPush("expenses", updated);
+  }
 }
 
 // ---------- Bulk backup / restore ----------

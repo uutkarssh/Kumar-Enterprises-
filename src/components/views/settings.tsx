@@ -40,12 +40,22 @@ import {
   Sun,
   Moon,
   ShieldAlert,
+  RefreshCw,
+  Smartphone,
+  Link2,
+  Cloud,
+  CloudOff,
+  Copy,
+  Loader2,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { DESIGN_PRESETS } from "@/lib/defaults";
 import { INDIAN_STATES, type AppSettings, type BusinessProfile, type InvoicePrefs, type TaxType } from "@/lib/types";
 import { saveSettings, clearAllData } from "@/lib/db";
 import { validateGstin, validatePan } from "@/lib/gst";
 import { cn } from "@/lib/utils";
+import { SyncTab } from "@/components/app/sync-tab";
 
 export function SettingsView() {
   return (
@@ -68,6 +78,9 @@ export function SettingsView() {
           <TabsTrigger value="appearance">
             <Palette className="h-3.5 w-3.5 mr-1" /> Appearance
           </TabsTrigger>
+          <TabsTrigger value="sync">
+            <RefreshCw className="h-3.5 w-3.5 mr-1" /> Sync & Devices
+          </TabsTrigger>
           <TabsTrigger value="about">
             <Info className="h-3.5 w-3.5 mr-1" /> About
           </TabsTrigger>
@@ -81,6 +94,9 @@ export function SettingsView() {
         </TabsContent>
         <TabsContent value="appearance">
           <AppearanceTab />
+        </TabsContent>
+        <TabsContent value="sync">
+          <SyncTab />
         </TabsContent>
         <TabsContent value="about">
           <AboutTab />
